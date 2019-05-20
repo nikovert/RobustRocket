@@ -1,0 +1,25 @@
+Lenght,                   2.7564
+Cone Lenght,              0.52
+Diameter,                 0.15
+Number of Fins,           3
+Fin height,               2.40E-01
+Fin base length,          2.40E-01
+Fin top length,           8.00E-02
+Fin Sweep angle,          45
+Fin thickness,            5.00E-03
+Mass dry,                 19.679
+Ixx,                      0.054
+Iyy,                      6.76
+Izz,                      6.76
+Xcm dry,                  1.729
+Launchpin height,         12.2e-3
+Launchpin Dia,            14e-3
+Rail angle,               83
+CS_Area,                  0.0032
+CS_CD0,                   1.17
+CS_Angle,                 90
+CS_Position,              1.950
+CS_Length,                0.04
+CS_Delay,                 1000
+Motor_efficiency,         0.97
+AeroTech_M2400.eng,       0
