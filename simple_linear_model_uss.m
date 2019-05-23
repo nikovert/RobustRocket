@@ -74,9 +74,9 @@ dFdu = (-3/2)*CS_Area*CS_CD0*Mass_dry^(-1)*rho_g*x(2)^2*(Temp_g^(-1)*( ...
 if imag(dFdz)+imag(dFdv)+imag(dFdu) ~= 0
     disp('warning: imaginary part in A or B matrix')
 end
-dFdz = ureal('dFdz',dFdz,'percent',20);
-dFdv = ureal('dFdv',dFdv,'percent',20);
-dFdu = ureal('dFdu',dFdu,'percent',20);
+dFdz = ureal('dFdz',dFdz,'percent',40);
+dFdv = ureal('dFdv',dFdv,'percent',70);
+dFdu = ureal('dFdu',dFdu,'percent',40);
 
 A = [0 1; dFdz dFdv];
 B = [0; dFdu];
