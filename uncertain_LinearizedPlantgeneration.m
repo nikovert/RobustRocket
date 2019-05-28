@@ -26,6 +26,10 @@ D_hat = 0;
 %Create a continous state-space model
 sys = ss(A_hat,B_hat,C_hat,D_hat,'StateName',{'Height' 'Velocity' 'offset'},'InputName','AirbrakeExtensionPrecentile', 'OutputName', {'Height', 'Acceleration'});
 
+%Generate Latex version of transfer function
+l_G = tf_to_latex(sys);
+
+
 % Check stabilizability https://ch.mathworks.com/help/control/ref/ctrbf.html
 [Abar,Bbar,Cbar,T,k] = ctrbf(sys.A.NominalValue,sys.B.NominalValue,sys.C.NominalValue);
 size_Auc = length(Abar)-sum(k);
@@ -44,6 +48,7 @@ G = minreal(sys.Nominal);
 
 %% Define Uncertainties (Slide 9.13)
 Uncertainties_fig = figure('Name', 'Uncertainties','NumberTitle','off'); clf; hold on; grid on; legend;
+Performance_fig = figure('Name', 'Performance Weights','NumberTitle','off'); clf; hold on; grid on; legend;
 
 inaccuracies_baro_fig = figure('Name', 'Barometric Uncertainties','NumberTitle','off'); clf; hold on; grid on; legend;
 
@@ -56,6 +61,8 @@ wc = 30; % At about 30Hz our motor cannot accuratly control the airbrakes anymor
 Wu = makeweight(0.8,wc,1.7);
 figure(Uncertainties_fig);
 bodemag(Wu);
+
+l_wu = tf_to_latex(Wu);
 
 %We will add white gausian noise for our sensors.
 %Additionally the sensors will will suffer inaccuracies when sampled at high frequencies (above 20Hz), especially the barometer. 
@@ -99,6 +106,7 @@ w_c = 35;
 Wp = 0.99 * makeweight(1.001,w_c+20, 0.3) * makeweight(0.001,w_c-15, 1.01);
 Wp_h = 0.8 * Wp;
 Wp_v = Wp;
+figure(Performance_fig);
 bodemag(Wp_h, Wp_v);
 
 save('extended_linearisedPlant_workspace');  
