@@ -7,8 +7,8 @@ rocket = CreateRocket("rocketConfiguration.txt");
 plant_fig = figure('Name', 'Plant','NumberTitle','off'); clf; grid on; legend;
 
 %x = [height; velocity]; 
-x0 = [2000; 160];
-u0 = 0.1;
+x0 = [2500; 120];
+u0 = 0;
 
 %We put uncertainty on our parameter when creating our linear model
 [A,B,K] = simple_linear_model_uss(rocket, x0, u0);
@@ -56,8 +56,8 @@ inaccuracies_acc_fig = figure('Name', 'Accelerometer Uncertainties','NumberTitle
 %We now define our input uncertainty. At low frequencies, our
 %motor can accurately actuate the airbrakes, at high frequencies though our
 %slew rate becomes noticable and accurately additionally will naturally go down. 
-wc = 40; % At about 30Hz our motor cannot accuratly control the airbrakes anymore and we want Wu to be at 50%
-Wu = makeweight(0.8,wc,1.5);
+wc = 40; % At about 30Hz our motor cannot accurately control the airbrakes anymore and we want Wu to be at 50%
+Wu = makeweight(0.01,wc,1.5);
 figure(Uncertainties_fig);
 bodemag(Wu);
 
@@ -102,7 +102,7 @@ bodemag(W_inaccuracies_acc);
 %Performance weight
 % We would like our controller to perform well, up to 30HZ
 w_c = 35;
-Wp = 0.99 * makeweight(1.001,w_c+20, 0.11) * makeweight(1.0000e-10,w_c-15, 1.01);
+Wp = 0.99 * makeweight(1.001,w_c+20, 0.8) * makeweight(0,w_c-15, 1.01);
 Wp_h = 0.65 * Wp;
 Wp_v = Wp;
 Wp_u = zpk(1);
@@ -110,69 +110,6 @@ figure(Performance_fig);
 bodemag(Wp_h, Wp_v, Wp_u);
 
 save('extended_linearisedPlant_workspace');  
-
-% %% Design a stabilizing controller for the nominal system
-% %func  = @(k1, k2) max(real(eig(G.A - G.B * [k1 k2] * G.C)));
-% %lambda = - ones(201) * inf;
-% k_opt = ss([-1, -1]); % silly initial guess
-% stab_controller = false;
-% if stab_controller
-%     percentChange = 100 / 201^2;
-%     percentage =  19.9005;
-%     fprintf('\n%.2f%%', percentage);
-%     for x = -60:100
-%         for y = -100:100
-%             K_stab = ss([x, y]);
-%             [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-%             G_stab = ss(A_stab,B_stab,C_stab,D_stab);
-%             if isstable(G_stab)
-%                 lambda(101+x,101+y) = max(eig(G_stab));
-%                 if(norm(k_opt.D) > norm(K_stab.D))
-%                     k_opt = K_stab;
-%                 end
-%             end
-%             percentage = percentage + percentChange;
-%             if percentage < 10
-%                 fprintf('\b\b\b\b\b%.2f%%', percentage)
-%             else
-%                 fprintf('\b\b\b\b\b\b%.2f%%', percentage)
-%             end
-%         end
-%     end
-%     fprintf('\b\b\b\b\b\b%.2f%%', 100)
-%     if max(max(lambda)) > -inf
-%         disp('Found stabilizing controller');
-%     else
-%         disp('No stabilizing controller found');
-%     end
-% end
-% %[X,Y] = meshgrid(-100:100,-100:100);
-% %surf(X,Y,lambda_hat)
-% 
-% %Choose a stabilizing controller
-% % K_stab = ss([-60, 60]);
-% % G_stab = lft(G,-K_stab);
-% % isstable(G_stab)
-% 
-% % K_stab = -K_stab;
-% % [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-% % G_stab = ss(A_stab,B_stab,C_stab,D_stab)
-% % isstable(G_stab)
-% 
-% 
-% %Plot nominal Plant (Slide 9.11)
-% 
-% % Create unceratinty model using the stabilizing controller
-% K_stab = k_opt;
-% [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-% G_stab = ss(A_stab,B_stab,C_stab,D_stab);
-% 
-% figure(plant_fig);
-% %H(i,j) selects the response from the jth input to the ith output.
-% G_stab = minreal(G_stab([6:7],[8])); % only concider output without the reference output
-% initial(G_stab,[x0;1], 50, 'r');
-% 
-% save('extended_linearisedPlant_workspace');  
 
 %% H_inf controller design (Slide 9.14)
 tracking_fig = figure('Name', 'Tracking Behaviour','NumberTitle','off'); clf; hold on; grid on; legend;
@@ -234,6 +171,7 @@ nctrl = 1;
 [Knom,Gnom,gamma,info] = hinfsyn(Pnomdesign,nmeas,nctrl,...
                                 'METHOD','ric',... % Riccati solution
                                 'TOLGAM',0.1); % gamma tolerance
+                            
 figure(singularvalue_fig);
 sigma(Gnom,ss(gamma));
 legend("Largest singular values of the closed loop system", "upper bound gamma");
@@ -273,7 +211,7 @@ grid on;
 
 %Grob_stab = lft(P_stab,Knom_stab);
 
-omega = logspace(-1,2,250); % frequency vector
+omega = logspace(-4,3,250); % frequency vector
 Grob_f = frd(Grob,omega); % frequency response
 %Grob_f_stab  = frd(Grob_stab ,omega);
 
@@ -320,6 +258,8 @@ P_uss = sysic;
 
 [Kmu1,clpmu,bnd, dkinfo] = dksyn(P_uss,nmeas,nctrl);
 
+disp(['Number of D-K iterations: ' num2str(length(dkinfo))]);
+
 figure(dk_iter);
 bodemag(muRP, dkinfo{1}.MussvBnds)
 legend("inital mu bound", "mu bound after first iteration");
@@ -334,7 +274,7 @@ Gmu1_f = frd(Gmu1,omega);
 
 muRS1 = mussv(Gmu1_f(Iz,Iv),RS_blk);
 %muNP1 = svd(Gmu1_f(Ie,Iw));
-muNP1 = mussv(Gmu1_f(Ie,Iw(3:4)), [2 3]);
+muNP1 = mussv(Gmu1_f(Ie,Iw(3:4)), [length(Iw(3:4)) length(Ie)]);
 [muRP1,muinfo1] = mussv(Gmu1_f,RP_blk);
 
 figure(mu_fig_1);
