@@ -20,11 +20,11 @@ C = [1 0; A(2,:)]; % We can only measure the height and the acceleration
 %   y = [C 0] X + Du
 A_hat = [A K; zeros(1,length(A)+1)];
 B_hat = [B;0];
-C_hat = [1 0 0; A_hat(2,:)];
-D_hat = 0;
+C_hat = [1 0 0; A_hat(2,:); zeros(1,3)];
+D_hat = [0; 0; 1];
 
 %Create a continous state-space model
-sys = ss(A_hat,B_hat,C_hat,D_hat,'StateName',{'Height' 'Velocity' 'offset'},'InputName','AirbrakeExtensionPrecentile', 'OutputName', {'Height', 'Acceleration'});
+sys = ss(A_hat,B_hat,C_hat,D_hat,'StateName',{'Height' 'Velocity' 'offset'},'InputName','AirbrakeExtensionPrecentile', 'OutputName', {'Height', 'Acceleration', 'Input'});
 
 %Generate Latex version of transfer function
 l_G = tf_to_latex(sys);
@@ -56,8 +56,8 @@ inaccuracies_acc_fig = figure('Name', 'Accelerometer Uncertainties','NumberTitle
 %We now define our input uncertainty. At low frequencies, our
 %motor can accurately actuate the airbrakes, at high frequencies though our
 %slew rate becomes noticable and accurately additionally will naturally go down. 
-wc = 30; % At about 30Hz our motor cannot accuratly control the airbrakes anymore and we want Wu to be at 50%
-Wu = makeweight(0.8,wc,1.7);
+wc = 40; % At about 30Hz our motor cannot accuratly control the airbrakes anymore and we want Wu to be at 50%
+Wu = makeweight(0.8,wc,1.5);
 figure(Uncertainties_fig);
 bodemag(Wu);
 
@@ -65,8 +65,8 @@ l_wu = tf_to_latex(Wu);
 
 %We will add white gausian noise for our sensors.
 %Additionally the sensors will will suffer inaccuracies when sampled at high frequencies (above 20Hz), especially the barometer. 
-W_sensorNoise_acc = zpk(0.5);
-W_sensorNoise_baro = zpk(0.7);
+W_sensorNoise_acc = makeweight(0.5,wc+5,1.1);
+W_sensorNoise_baro = makeweight(0.5,wc,1.1);
 W_sensorNoise = [W_sensorNoise_baro 0; 0 W_sensorNoise_acc];
 figure(Uncertainties_fig);
 bodemag(W_sensorNoise_acc, '--',W_sensorNoise_baro,'--');
@@ -102,76 +102,77 @@ bodemag(W_inaccuracies_acc);
 %Performance weight
 % We would like our controller to perform well, up to 30HZ
 w_c = 35;
-Wp = 0.99 * makeweight(1.001,w_c+20, 0.3) * makeweight(1.0000e-10,w_c-15, 1.01);
-Wp_h = 0.8 * Wp;
+Wp = 0.99 * makeweight(1.001,w_c+20, 0.11) * makeweight(1.0000e-10,w_c-15, 1.01);
+Wp_h = 0.65 * Wp;
 Wp_v = Wp;
+Wp_u = zpk(1);
 figure(Performance_fig);
-bodemag(Wp_h, Wp_v);
+bodemag(Wp_h, Wp_v, Wp_u);
 
 save('extended_linearisedPlant_workspace');  
 
-%% Design a stabilizing controller for the nominal system
-%func  = @(k1, k2) max(real(eig(G.A - G.B * [k1 k2] * G.C)));
-%lambda = - ones(201) * inf;
-k_opt = ss([-1, -1]); % silly initial guess
-stab_controller = false;
-if stab_controller
-    percentChange = 100 / 201^2;
-    percentage =  19.9005;
-    fprintf('\n%.2f%%', percentage);
-    for x = -60:100
-        for y = -100:100
-            K_stab = ss([x, y]);
-            [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-            G_stab = ss(A_stab,B_stab,C_stab,D_stab);
-            if isstable(G_stab)
-                lambda(101+x,101+y) = max(eig(G_stab));
-                if(norm(k_opt.D) > norm(K_stab.D))
-                    k_opt = K_stab;
-                end
-            end
-            percentage = percentage + percentChange;
-            if percentage < 10
-                fprintf('\b\b\b\b\b%.2f%%', percentage)
-            else
-                fprintf('\b\b\b\b\b\b%.2f%%', percentage)
-            end
-        end
-    end
-    fprintf('\b\b\b\b\b\b%.2f%%', 100)
-    if max(max(lambda)) > -inf
-        disp('Found stabilizing controller');
-    else
-        disp('No stabilizing controller found');
-    end
-end
-%[X,Y] = meshgrid(-100:100,-100:100);
-%surf(X,Y,lambda_hat)
-
-%Choose a stabilizing controller
-% K_stab = ss([-60, 60]);
-% G_stab = lft(G,-K_stab);
-% isstable(G_stab)
-
-% K_stab = -K_stab;
+% %% Design a stabilizing controller for the nominal system
+% %func  = @(k1, k2) max(real(eig(G.A - G.B * [k1 k2] * G.C)));
+% %lambda = - ones(201) * inf;
+% k_opt = ss([-1, -1]); % silly initial guess
+% stab_controller = false;
+% if stab_controller
+%     percentChange = 100 / 201^2;
+%     percentage =  19.9005;
+%     fprintf('\n%.2f%%', percentage);
+%     for x = -60:100
+%         for y = -100:100
+%             K_stab = ss([x, y]);
+%             [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
+%             G_stab = ss(A_stab,B_stab,C_stab,D_stab);
+%             if isstable(G_stab)
+%                 lambda(101+x,101+y) = max(eig(G_stab));
+%                 if(norm(k_opt.D) > norm(K_stab.D))
+%                     k_opt = K_stab;
+%                 end
+%             end
+%             percentage = percentage + percentChange;
+%             if percentage < 10
+%                 fprintf('\b\b\b\b\b%.2f%%', percentage)
+%             else
+%                 fprintf('\b\b\b\b\b\b%.2f%%', percentage)
+%             end
+%         end
+%     end
+%     fprintf('\b\b\b\b\b\b%.2f%%', 100)
+%     if max(max(lambda)) > -inf
+%         disp('Found stabilizing controller');
+%     else
+%         disp('No stabilizing controller found');
+%     end
+% end
+% %[X,Y] = meshgrid(-100:100,-100:100);
+% %surf(X,Y,lambda_hat)
+% 
+% %Choose a stabilizing controller
+% % K_stab = ss([-60, 60]);
+% % G_stab = lft(G,-K_stab);
+% % isstable(G_stab)
+% 
+% % K_stab = -K_stab;
+% % [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
+% % G_stab = ss(A_stab,B_stab,C_stab,D_stab)
+% % isstable(G_stab)
+% 
+% 
+% %Plot nominal Plant (Slide 9.11)
+% 
+% % Create unceratinty model using the stabilizing controller
+% K_stab = k_opt;
 % [A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-% G_stab = ss(A_stab,B_stab,C_stab,D_stab)
-% isstable(G_stab)
-
-
-%Plot nominal Plant (Slide 9.11)
-
-% Create unceratinty model using the stabilizing controller
-K_stab = k_opt;
-[A_stab,B_stab,C_stab,D_stab] = linmod('FlightModel_stab');
-G_stab = ss(A_stab,B_stab,C_stab,D_stab);
-
-figure(plant_fig);
-%H(i,j) selects the response from the jth input to the ith output.
-G_stab = minreal(G_stab([6:7],[8])); % only concider output without the reference output
-initial(G_stab,[x0;1], 50, 'r');
-
-save('extended_linearisedPlant_workspace');  
+% G_stab = ss(A_stab,B_stab,C_stab,D_stab);
+% 
+% figure(plant_fig);
+% %H(i,j) selects the response from the jth input to the ith output.
+% G_stab = minreal(G_stab([6:7],[8])); % only concider output without the reference output
+% initial(G_stab,[x0;1], 50, 'r');
+% 
+% save('extended_linearisedPlant_workspace');  
 
 %% H_inf controller design (Slide 9.14)
 tracking_fig = figure('Name', 'Tracking Behaviour','NumberTitle','off'); clf; hold on; grid on; legend;
@@ -187,7 +188,7 @@ singularvalue_fig = figure('Name', 'Singular values of the closed loop system','
 % [M,DELTA,BLKSTRUCT,NORMUNC] = lftdata(sys_new);
 
 % G = minreal(sys.NominalValue);
-[A_P,B_P,C_P,D_P] = linmod('FlightModel');
+[A_P,B_P,C_P,D_P] = linmod('u_perf_FlightModel');
 P = ss(A_P,B_P,C_P,D_P);
 %P_stab = ss(A_stab,B_stab,C_stab,D_stab);
 
@@ -205,19 +206,20 @@ P = ss(A_P,B_P,C_P,D_P);
 %          |_____|
 %
 
-Iz = [1:3]'; % Create indices for each block.
+% Create indices for each block.
+Iz = [1:3]';            %output going to the uncertainty block
     nz = length(Iz);
-Iv = [1:3]';
+Iv = [1:3]';            %input coming from the uncertainty block
     nv = length(Iv);
     
-Ie = [4:5]';
+Ie = [4:6]';            %performance weights
     ne = length(Ie);
-Iw = [4:7]';
+Iw = [4:7]';            %noise and reference
     nw = length(Iw);
 
-Iy = [6:9]';
+Iy = [7:10]';           %state estimate and reference 
     ny = length(Iy);
-Iu = [8]';
+Iu = [8]';              %system input
     nu = length(Iu);
 
 Pnomdesign = P([Ie;Iy],[Iw;Iu]); % select [e;y] <- [w;u]
@@ -244,16 +246,16 @@ disp(['Gamma: ', num2str(gamma)]);
 %[Knom_stab,Gnom_stab,gamma_stab,info_stab] = hinfsyn(Pnomdesign_stab,nmeas,nctrl,'METHOD','ric','TOLGAM',0.1); 
 
 % closed-loop analysis and simulation (Slide 9.15)
-[Aclp,Bclp,Cclp,Dclp] = linmod('ControlModel');
-Gclp = ss(Aclp,Bclp,Cclp,Dclp);
-Gclp_nom = Gclp(Ie,Iw);
-Gclp_nom = minreal(Gclp_nom); % remove perturbation weight states.
-
-% Plot nominal command responses (Slide 9.16)
-Gclp_nom_tracking =  Gclp_nom([1 2]',[3 4]');
-figure(tracking_fig);
-step(Gclp_nom_tracking(1,1),[0,50]);
-step(Gclp_nom_tracking(2,2),[0,50]); legend 'h_ref->h' 'v_ref->v';
+% [Aclp,Bclp,Cclp,Dclp] = linmod('ControlModel');
+% Gclp = ss(Aclp,Bclp,Cclp,Dclp);
+% Gclp_nom = Gclp(Ie,Iw);
+% Gclp_nom = minreal(Gclp_nom); % remove perturbation weight states.
+% 
+% % Plot nominal command responses (Slide 9.16)
+% Gclp_nom_tracking =  Gclp_nom([1 2]',[3 4]');
+% figure(tracking_fig);
+% step(Gclp_nom_tracking(1,1),[0,50]);
+% step(Gclp_nom_tracking(2,2),[0,50]); legend 'h_ref->h' 'v_ref->v';
 % Plot nominal noise responses (Slide 9.17)
 % Plot nominal disturbance responses (Slide 9.18)
 % Plot nominal step response (Slide 9.19)
@@ -279,10 +281,11 @@ RS_blk = [1 0; 1 0; 1 0]; % {d1, d2 ,d3} are real
 muRS = mussv(Grob_f(Iz,Iv),RS_blk);
 %muRS_stab = mussv(Grob_f_stab(Iz,Iv),RS_blk);
 
-muNP = svd(Grob_f(Ie,Iw(3:4))); % nominal performance
+%muNP = svd(Grob_f(Ie,Iw(3:4))); % nominal performance
 %muNP_stab = svd(Grob_f_stab(Ie,Iw));
+muNP = mussv(Grob_f(Ie,Iw(3:4)), [length(Iw(3:4)) length(Ie)]);
 
-RP_blk = [RS_blk; 4 2]; % {d1, d2 ,d3, D4} are real, D4 is 4x2 real matrix
+RP_blk = [RS_blk; length(Iw) length(Ie)]; % {d1, d2 ,d3, D4} are real, D4 is 4x3 real matrix
 [muRP,muinfo0] = mussv(Grob_f,RP_blk); % robust performance
 %[muRP_stab,muinfo0_stab] = mussv(Grob_f_stab,RP_blk);
 
@@ -290,6 +293,7 @@ RP_blk = [RS_blk; 4 2]; % {d1, d2 ,d3, D4} are real, D4 is 4x2 real matrix
 figure(mu_fig_0);
 bodemag(muRS, muNP, muRP);
 legend 'muRS' 'muNP' 'mRP'; 
+ylim([-20,10]);
 %bodemag(muRS_stab, muNP_stab, muRP_stab);
 %legend 'muRS_stab' 'muNP_stab' 'mRP_stab';
 %% Start D-K iteration
@@ -308,7 +312,7 @@ delta.OutputName = {'v'};
 % Generalized uncertain plant P
 systemnames = 'P delta';
 inputvar = '[w{4};u]';
-outputvar = '[P(4:9)]';
+outputvar = '[P(4:10)]';
 input_to_P = '[delta(1:3);w(1:4);u]';
 input_to_delta = '[P(1:3)]';
 %cleanupsysic = 'yes';
@@ -320,7 +324,6 @@ figure(dk_iter);
 bodemag(muRP, dkinfo{1}.MussvBnds)
 legend("inital mu bound", "mu bound after first iteration");
 
-
 Gmu1 = lft(P_uss,Kmu1); % repeat the robustness analysis
 figure(wc_fig_dk);
 wcsigma(Gmu1,{1,1000})
@@ -330,11 +333,14 @@ Gmu1 = lft(P,Kmu1);
 Gmu1_f = frd(Gmu1,omega);
 
 muRS1 = mussv(Gmu1_f(Iz,Iv),RS_blk);
-muNP1 = svd(Gmu1_f(Ie,Iw));
+%muNP1 = svd(Gmu1_f(Ie,Iw));
+muNP1 = mussv(Gmu1_f(Ie,Iw(3:4)), [2 3]);
 [muRP1,muinfo1] = mussv(Gmu1_f,RP_blk);
 
 figure(mu_fig_1);
 bodemag(muRS1, muNP1, muRP1);
+legend 'muRS' 'muNP' 'mRP'; 
+ylim([-20,10]);
 %%
 keyboard
 %% Manual DK iteration
