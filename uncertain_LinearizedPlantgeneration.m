@@ -29,7 +29,6 @@ sys = ss(A_hat,B_hat,C_hat,D_hat,'StateName',{'Height' 'Velocity' 'offset'},'Inp
 %Generate Latex version of transfer function
 l_G = tf_to_latex(sys);
 
-
 % Check stabilizability https://ch.mathworks.com/help/control/ref/ctrbf.html
 [Abar,Bbar,Cbar,T,k] = ctrbf(sys.A.NominalValue,sys.B.NominalValue,sys.C.NominalValue);
 size_Auc = length(Abar)-sum(k);
@@ -176,6 +175,7 @@ save('extended_linearisedPlant_workspace');
 
 %% H_inf controller design (Slide 9.14)
 tracking_fig = figure('Name', 'Tracking Behaviour','NumberTitle','off'); clf; hold on; grid on; legend;
+singularvalue_fig = figure('Name', 'Singular values of the closed loop system','NumberTitle','off'); clf; hold on; grid on; legend;
 % Modify the system to allow reference to go to our ouput
 % A_new = sys.A;
 % B_new = [sys.B zeros(length(sys.B),2)];
@@ -232,6 +232,11 @@ nctrl = 1;
 [Knom,Gnom,gamma,info] = hinfsyn(Pnomdesign,nmeas,nctrl,...
                                 'METHOD','ric',... % Riccati solution
                                 'TOLGAM',0.1); % gamma tolerance
+figure(singularvalue_fig);
+sigma(Gnom,ss(gamma));
+legend("Largest singular values of the closed loop system", "upper bound gamma");
+ylim([-20,5]);
+                            
 if isstable(Gnom)
    disp('close loop h_infinity system is stable')
 end
@@ -257,10 +262,12 @@ save('extended_linearisedPlant_workspace');
 mu_fig_0 = figure('Name', 'Mu_0','NumberTitle','off'); clf; hold on; grid on; legend;
 wc_fig = figure('Name', 'Worst Case','NumberTitle','off'); clf; hold on; grid on; legend;
 Grob = lft(P,Knom);
+
 % Compute and plot worst-case gain
 figure(wc_fig)
 wcsigma(Grob)
-axis([1 1000 -20 10])
+axis([1 1000 -20 10]);
+grid on;
 
 %Grob_stab = lft(P_stab,Knom_stab);
 
@@ -288,6 +295,7 @@ legend 'muRS' 'muNP' 'mRP';
 %% Start D-K iteration
 mu_fig_1 = figure('Name', 'Mu_1','NumberTitle','off'); clf; hold on; grid on; legend;
 wc_fig_dk = figure('Name', 'Worst Case after D-K iteration','NumberTitle','off'); clf; hold on; grid on; legend;
+dk_iter = figure('Name', 'mu Bounds during D-K iteration','NumberTitle','off'); clf; hold on; grid on; legend;
 % Normalized error dynamics
 delta1 = ultidyn('delta1',[1 1]);
 delta2 = ultidyn('delta2',[1 1]);
@@ -306,7 +314,12 @@ input_to_delta = '[P(1:3)]';
 %cleanupsysic = 'yes';
 P_uss = sysic;
 
-[Kmu1,clpmu,bnd] = dksyn(P_uss,nmeas,nctrl);
+[Kmu1,clpmu,bnd, dkinfo] = dksyn(P_uss,nmeas,nctrl);
+
+figure(dk_iter);
+bodemag(muRP, dkinfo{1}.MussvBnds)
+legend("inital mu bound", "mu bound after first iteration");
+
 
 Gmu1 = lft(P_uss,Kmu1); % repeat the robustness analysis
 figure(wc_fig_dk);
