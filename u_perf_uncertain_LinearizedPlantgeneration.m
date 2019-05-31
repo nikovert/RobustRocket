@@ -7,7 +7,7 @@ rocket = CreateRocket("rocketConfiguration.txt");
 plant_fig = figure('Name', 'Plant','NumberTitle','off'); clf; grid on; legend;
 
 %x = [height; velocity]; 
-x0 = [2500; 120];
+x0 = [2000; 160];
 u0 = 0;
 
 %We put uncertainty on our parameter when creating our linear model
@@ -91,6 +91,9 @@ legend 'relative error to nominal plant', 'upper bound';
 figure(inaccuracies_acc_fig);
 bodemag(relerr2, Info2.W1, '-r');
 legend 'relative error to nominal plant', 'upper bound';
+
+l_W_acc = tf_to_latex(Info2.W1);
+l_W_baro = tf_to_latex(Info1.W1);
 
 W_inaccuracies_baro = Info1.W1;
 W_inaccuracies_acc = Info2.W1;
@@ -256,13 +259,13 @@ input_to_delta = '[P(1:3)]';
 %cleanupsysic = 'yes';
 P_uss = sysic;
 
-[Kmu1,clpmu,bnd, dkinfo] = dksyn(P_uss,nmeas,nctrl);
+[Kmu1,clpmu, bnd, dkinfo] = dksyn(P_uss,nmeas,nctrl);
 
 disp(['Number of D-K iterations: ' num2str(length(dkinfo))]);
 
 figure(dk_iter);
-bodemag(muRP, dkinfo{1}.MussvBnds)
-legend("inital mu bound", "mu bound after first iteration");
+bodemag(muRP, dkinfo{1}.MussvBnds, dkinfo{end}.MussvBnds)
+legend("inital mu bound", "mu bound after first iteration", "mu bound after final iteration");
 
 Gmu1 = lft(P_uss,Kmu1); % repeat the robustness analysis
 figure(wc_fig_dk);
